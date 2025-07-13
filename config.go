@@ -36,18 +36,17 @@ type BindConfig struct {
 	Raw string `json:"-,omitempty"`
 
 	// metadata(required)
-	Network constant.Protocol `json:"network,omitempty"`
-	Listen  netip.Addr        `json:"listen,omitempty"`
-	Port    uint16            `json:"port,omitempty"`
-	Remote  string            `json:"remote,omitempty"`
+	Listen netip.Addr `json:"listen,omitempty"`
+	Port   uint16     `json:"port,omitempty"`
+	Remote string     `json:"remote,omitempty"`
 	// metadata(optional)
-	Name string `json:"name,omitempty"`
+	Name    string            `json:"name,omitempty"`
+	Network constant.Protocol `json:"network,omitempty"`
 
 	// below is configured by args
 	Family    string `json:"family,omitempty"`
 	Interface string `json:"interface,omitempty"`
-	// TProxy    bool   `json:"tproxy,omitempty"`
-	ReuseAddr bool `json:"reuse_addr,omitempty"`
+	ReuseAddr bool   `json:"reuse_addr,omitempty"`
 
 	// tcp
 	TFO bool `json:"tfo,omitempty"`

@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"golang.org/x/sys/unix"
+	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -67,7 +68,16 @@ func main() {
 	}
 
 	if flagConfig != "" {
-		bs, err := os.ReadFile(flagConfig)
+		var (
+			bs  []byte
+			err error
+		)
+		if flagConfig == "-" {
+			bs, err = io.ReadAll(os.Stdin)
+		} else {
+			bs, err = os.ReadFile(flagConfig)
+		}
+
 		if err != nil {
 			slog.Error("read config file failed", slog.String("error", err.Error()))
 			os.Exit(1)
