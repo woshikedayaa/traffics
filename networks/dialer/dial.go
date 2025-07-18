@@ -177,7 +177,7 @@ func (d *DefaultDialer) DialContext(ctx context.Context, network, address string
 
 func (d *DefaultDialer) DialSerial(ctx context.Context, network string, addresses []netip.Addr, port uint16) (net.Conn, error) {
 	if len(addresses) == 0 {
-		return nil, errors.New("dialer: no addresses to dial")
+		return nil, errors.New("dialer: no address to dial")
 	}
 	nn, networkErr := constant.ParseNetwork(network)
 	if networkErr != nil {
@@ -268,6 +268,7 @@ func (d *DefaultDialer) DialParallel(ctx context.Context, network string, strate
 	} else {
 		first, second = ipv6, ipv4
 	}
+
 	go func() {
 		conn, err := d.DialSerial(dialCtx, network, first, port)
 		select {

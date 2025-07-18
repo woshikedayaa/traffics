@@ -80,7 +80,11 @@ func (c *BindConfig) valid() error {
 			return fmt.Errorf("bind: listen a ipv4 address with ipv6 family")
 		}
 	} else {
-		c.Listen = netip.IPv6Unspecified()
+		if c.Family == constant.FamilyIPv4 {
+			c.Listen = netip.IPv4Unspecified()
+		} else {
+			c.Listen = netip.IPv6Unspecified()
+		}
 	}
 
 	if c.Port == 0 {
@@ -101,9 +105,7 @@ func (c *BindConfig) Parse(s string) error {
 
 	c.Raw = s
 	var listenAddress netip.Addr
-	if uu.Hostname() == "" {
-		listenAddress = netip.IPv6Unspecified()
-	} else {
+	if uu.Hostname() != "" {
 		listenAddress, err = netip.ParseAddr(uu.Hostname())
 		if err != nil {
 			return fmt.Errorf("prase bind(listen): %w", err)
@@ -209,13 +211,13 @@ type RemoteConfig struct {
 
 	// optional
 	DNS             string            `json:"dns,omitempty"`
-	ResolveStrategy resolver.Strategy `json:"resolve_strategy,omitempty"`
+	ResolveStrategy resolver.Strategy `json:"strategy,omitempty"`
 	Timeout         time.Duration     `json:"timeout,omitempty"`
 	ReuseAddr       bool              `json:"reuse_addr,omitempty"`
 	Interface       string            `json:"interface,omitempty"`
-	BindAddress4    netip.Addr        `json:"bind_address_4,omitempty"`
-	BindAddress6    netip.Addr        `json:"bind_address_6,omitempty"`
-	FwMark          uint32            `json:"fw_mark,omitempty"`
+	BindAddress4    netip.Addr        `json:"bind_address4,omitempty"`
+	BindAddress6    netip.Addr        `json:"bind_address6,omitempty"`
+	FwMark          uint32            `json:"fwmark,omitempty"`
 
 	// tcp
 	TFO   bool `json:"tfo,omitempty"`
@@ -279,10 +281,10 @@ func (c *RemoteConfig) Parse(s string) error {
 		switch k {
 		case "dns":
 			c.DNS = val
-		case "resolve_strategy":
+		case "strategy":
 			strategy, ok := resolver.ParseStrategy(val)
 			if !ok {
-				return errors.New(fmt.Sprintf("resolve: unsupported resolve policy: %s", val))
+				return fmt.Errorf("parse remote(strategy): unsupported strategy: %s", val)
 			}
 			c.ResolveStrategy = strategy
 		case "timeout":
@@ -303,10 +305,10 @@ func (c *RemoteConfig) Parse(s string) error {
 				return fmt.Errorf("parse remote(tfo): expected bool, got %s", val)
 			}
 			c.TFO = ok
-		case "fw_mark":
+		case "fwmark":
 			mark, err := strconv.ParseUint(val, 10, 32)
 			if err != nil {
-				return fmt.Errorf("parse remote(fw_mark): %w", err)
+				return fmt.Errorf("parse remote(fwmark): %w", err)
 			}
 			c.FwMark = uint32(mark)
 		case "udp_fragment":
@@ -323,16 +325,16 @@ func (c *RemoteConfig) Parse(s string) error {
 				return fmt.Errorf("parse remote(mptcp):  expected bool, got %s: %w", val, err)
 			}
 			c.MPTCP = mptcp
-		case "bind_address_4":
+		case "bind_address4":
 			addr, err := netip.ParseAddr(val)
 			if err != nil {
-				return fmt.Errorf("parse remote(bind_address_4): %w", err)
+				return fmt.Errorf("parse remote(bind_address4): %w", err)
 			}
 			c.BindAddress4 = addr
-		case "bind_address_6":
+		case "bind_address6":
 			addr, err := netip.ParseAddr(val)
 			if err != nil {
-				return fmt.Errorf("parse remote(bind_address_6): %w", err)
+				return fmt.Errorf("parse remote(bind_address6): %w", err)
 			}
 			c.BindAddress6 = addr
 		case "name":

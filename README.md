@@ -8,111 +8,119 @@ Traffics is a lightweight port forwarding tool that supports TCP, UDP, and mixed
 
 ## Installation
 
-### 1. Clone the project
 ```shell
+# Clone the project
 git clone --depth=1 --branch=main https://github.com/woshikedayaa/traffics.git
-```
 
-### 2. Change to project directory
-```shell
+# Build the project
 cd traffics/
-```
-
-### 3. Build
-```shell
 mkdir -p bin/ && CGO_ENABLED=0 go build -ldflags="-w -s" -v -o bin/traffics .
-```
 
-### 4. Install to system PATH (optional)
-```shell
+# Optional: Install to system PATH
 install -o root -g root -m 0755 bin/traffics /usr/bin/traffics
 ```
 
+## Architecture
+
+Traffics uses a Binds (listeners) + Remotes (targets) architecture:
+
+- **Binds**: Local listening configuration, defines ports and protocols to listen on
+- **Remotes**: Remote target configuration, defines destination servers for forwarding
+
+Traffic flow: Client → Bind Listener → Remote Target Server
+
 ## Usage
 
-Traffics provides two configuration methods: **Command-line parameter configuration** and **Configuration file configuration**.
+### Zero Config Mode (Command Line)
 
-### Method 1: Command-line Parameter Configuration
+Suitable for simple scenarios, supports multiple forwarding rules:
 
-Use `-l` (listen) and `-r` (remote) parameters to specify forwarding rules directly, using URL format parameters.
-
-**Note**: You can only specify one `-l` and one `-r` parameter. For multiple forwarding rules, please use the configuration file method.
-
-#### TCP Forwarding
 ```shell
-traffics -l "tcp://:8443?remote=test" -r "1.1.1.1:443?name=test&tfo=true&timeout=10s"
+# Single forwarding rule
+traffics -l "tcp+udp://:5353?remote=dns" -r "dns://1.1.1.1:53"
 
-# Traffic path: local:8443 -> 1.1.1.1:443
+# Multiple forwarding rules
+traffics \
+  -l "tcp+udp://:5353?remote=dns" \
+  -l "tcp://:8080?remote=web" \
+  -r "dns://1.1.1.1:53?timeout=5s" \
+  -r "web://192.168.1.100:80?tfo=true"
 ```
 
-#### UDP Forwarding
-```shell
-traffics -l "udp://:5353?remote=test" -r "1.1.1.1:53?name=test"
+### Configuration File Mode
 
-# Traffic path: local:5353 -> 1.1.1.1:53
+Suitable for complex scenarios and production environments:
+
+```shell
+traffics -c config.json
 ```
 
-#### TCP + UDP Mixed Forwarding
-```shell
-traffics -l "tcp+udp://:5353?remote=test" -r "1.1.1.1:53?name=test"
+## Configuration File Format
 
-# Traffic path: local:5353 -> 1.1.1.1:53 (supports both TCP and UDP)
-```
+Configuration files support two formats: **URL shorthand** and **complete configuration**, which can be mixed.
 
-### Method 2: Configuration File Configuration
+### Basic Configuration Structure
 
-Use JSON configuration files for more complex and flexible configurations.
-
-#### Create configuration file
-```shell
-cat > config.json << EOF
+```json
 {
   "log": {
     "level": "info"
   },
   "binds": [
+    // URL shorthand format
+    "tcp+udp://:5353?remote=dns&udp_ttl=60s",
+    
+    // Complete configuration format  
     {
-      "network": "tcp+udp",
-      "remote": "test",
       "listen": "::",
-      "port": 5353,
-      "name": "test-in"
+      "port": 8080,
+      "network": "tcp",
+      "remote": "web"
     }
   ],
   "remotes": [
+    // URL shorthand format
+    "dns://1.1.1.1:53?strategy=prefer_ipv4&timeout=5s",
+    
+    // Complete configuration format
     {
-      "name": "test",
-      "server": "1.1.1.1",
-      "port": 53
+      "name": "web",
+      "server": "192.168.1.100", 
+      "port": 80,
+      "timeout": "10s"
     }
   ]
 }
-EOF
 ```
 
-#### Start service
-```shell
-traffics -c config.json
+### URL Format Specification
+
+#### Bind URL Format
+```
+protocol://[address]:port?param=value&param=value
 ```
 
-## Configuration Reference
+#### Remote URL Format
+```
+name://server:port?param=value&param=value
+```
+
+## Complete Configuration Reference
 
 ### Log Configuration
 
-Configure logging behavior and verbosity.
-
-```json lines
+```json
 {
-  "disable": false,        // Disable logging (default: false)
-  "level": "info"         // Log level: trace, debug, info, warn, error, fatal, panic
+  "log": {
+    "disable": false,        // Disable logging (default: false)
+    "level": "info"         // Log level: trace, debug, info, warn, error, fatal, panic
+  }
 }
 ```
 
-### Bind Configuration (Listen Configuration)
+### Bind Configuration (Complete Format)
 
-Configure local listening ports and related parameters.
-
-```json lines
+```json
 {
   // Required fields
   "listen": "::",           // Listen address
@@ -133,11 +141,9 @@ Configure local listening ports and related parameters.
 }
 ```
 
-### Remote Configuration (Target Configuration)
+### Remote Configuration (Complete Format)
 
-Configure connection parameters for forwarding target servers.
-
-```json lines
+```json
 {
   // Required fields
   "server": "1.1.1.1",    // Target server address
@@ -146,7 +152,7 @@ Configure connection parameters for forwarding target servers.
   
   // Optional fields
   "dns": "8.8.8.8",           // Custom DNS server
-  "resolve_strategy": "prefer_ipv4", // DNS resolution strategy: prefer_ipv4/prefer_ipv6/ipv4_only/ipv6_only
+  "strategy": "prefer_ipv4",  // DNS resolution strategy: prefer_ipv4/prefer_ipv6/ipv4_only/ipv6_only
   "interface": "eth0",         // Outbound network interface
   "timeout": "5s",            // Connection timeout
   "reuse_addr": false,        // Enable address reuse
@@ -159,48 +165,119 @@ Configure connection parameters for forwarding target servers.
 }
 ```
 
-## Complete Configuration Examples
+### URL Parameters Reference
 
-### Multi-service Forwarding Configuration
+#### Bind URL Parameters
+- `remote`: Associated remote service name (required)
+- `name`: Bind configuration name
+- `network`: Network protocol (tcp, udp, tcp+udp)
+- `family`: IP version (4 or 6)
+- `interface`: Bind to network interface
+- `reuse_addr`: Enable address reuse (true/false)
+- `tfo`: TCP Fast Open (true/false)
+- `mptcp`: Multipath TCP (true/false)
+- `udp_ttl`: UDP connection timeout (e.g., "60s")
+- `udp_buffer_size`: UDP buffer size (integer)
+- `udp_fragment`: UDP fragmentation support (true/false)
+
+#### Remote URL Parameters
+- `dns`: Custom DNS server
+- `strategy`: DNS resolution strategy (prefer_ipv4/prefer_ipv6/ipv4_only/ipv6_only)
+- `interface`: Outbound network interface
+- `timeout`: Connection timeout (e.g., "5s")
+- `reuse_addr`: Enable address reuse (true/false)
+- `bind_address4`: IPv4 bind address
+- `bind_address6`: IPv6 bind address
+- `fw_mark`: Firewall mark (integer)
+- `tfo`: TCP Fast Open (true/false)
+- `mptcp`: Multipath TCP (true/false)
+- `udp_fragment`: UDP fragmentation support (true/false)
+
+## Configuration Examples
+
+### Mixed Format Configuration
+
 ```json
 {
   "log": {
-    "disable": false,
-    "level": "info"
+    "level": "info",
+    "disable": false
   },
   "binds": [
+    // URL format with advanced UDP settings
+    "tcp+udp://[::]:5353?remote=cloudflare_dns&udp_ttl=60s&udp_buffer_size=4096&tfo=true",
+    
+    // Complete format with interface binding
     {
-      "network": "tcp+udp",
-      "remote": "dns_server",
+      "listen": "0.0.0.0",
+      "port": 8080,
+      "network": "tcp", 
+      "remote": "web_server",
+      "interface": "eth0",
+      "tfo": true,
+      "reuse_addr": true
+    },
+    
+    // UDP-only forwarding
+    {
       "listen": "::",
-      "port": 5353,
-      "name": "dns_proxy",
-      "udp_ttl": "60s"
+      "port": 1194,
+      "network": "udp",
+      "remote": "vpn_server",
+      "udp_ttl": "300s",
+      "udp_fragment": true
     }
   ],
   "remotes": [
+    // URL format with DNS strategy
+    "cloudflare_dns://1.1.1.1:53?strategy=prefer_ipv4&timeout=10s&tfo=true",
+    
+    // Complete format with custom DNS and binding
     {
-      "name": "dns_server",
-      "server": "1.1.1.1",
-      "port": 53,
-      "timeout": "10s",
-      "resolve_strategy": "prefer_ipv4",
-      "tfo": true
+      "name": "web_server",
+      "server": "backend.example.com",
+      "port": 80,
+      "timeout": "15s",
+      "strategy": "prefer_ipv4",
+      "dns": "8.8.8.8",
+      "interface": "eth0",
+      "bind_address4": "192.168.1.10"
+    },
+    
+    // VPN server with fragmentation support
+    {
+      "name": "vpn_server",
+      "server": "vpn.example.com",
+      "port": 1194,
+      "timeout": "30s",
+      "strategy": "prefer_ipv6",
+      "udp_fragment": true,
+      "fw_mark": 100
     }
   ]
 }
 ```
 
-### Single Service with URL Parameters
+### Command Line Examples
+
 ```shell
-# Single TCP forwarding with advanced options
-traffics -l "tcp://0.0.0.0:8080?remote=web_server" -r "192.168.1.100:80?name=web_server&timeout=10s&tfo=true"
+# DNS forwarding with UDP optimization
+traffics -l "udp://:5353?remote=dns&udp_ttl=120s" -r "dns://1.1.1.1:53?strategy=ipv4_only"
 
-# Single UDP DNS forwarding
-traffics -l "udp://[::]:5353?remote=dns_server&udp_ttl=30s" -r "1.1.1.1:53?name=dns_server&resolve_strategy=prefer_ipv4"
+# Web server with TCP Fast Open
+traffics -l "tcp://0.0.0.0:8080?remote=web&tfo=true" -r "web://192.168.1.100:80?tfo=true&timeout=10s"
 
-# Mixed protocol game server forwarding
-traffics -l "tcp+udp://0.0.0.0:25565?remote=game_server" -r "game.example.com:25565?name=game_server&timeout=15s&tfo=true"
+# Game server with mixed protocols
+traffics -l "tcp+udp://0.0.0.0:25565?remote=game" -r "game://game.example.com:25565?timeout=15s&strategy=prefer_ipv4"
+
+# Multiple services
+traffics \
+  -l "tcp+udp://:53?remote=dns&udp_ttl=60s" \
+  -l "tcp://:80?remote=web&tfo=true" \
+  -l "udp://:1194?remote=vpn&udp_ttl=300s" \
+  -r "dns://1.1.1.1:53?strategy=prefer_ipv4" \
+  -r "web://backend:8080?timeout=10s&tfo=true" \
+  -r "vpn://vpn.company.com:1194?udp_fragment=true"
 ```
 
 ## Use Cases
@@ -213,13 +290,11 @@ traffics -l "tcp+udp://0.0.0.0:25565?remote=game_server" -r "game.example.com:25
 
 ## Important Notes
 
-1. When using `tcp+udp` mode, both TCP and UDP traffic will be forwarded to the same remote service
-2. The `remote` field must match the `name` field in the `remotes` configuration
-3. Command-line parameters (`-l` and `-r`) only support single forwarding rules. For multiple rules, use configuration files
-4. It's recommended to use configuration files in production environments for easier management and maintenance
-5. UDP forwarding supports session persistence, controlled by the `udp_ttl` timeout setting
-6. Log levels available: `debug`, `info`, `warn`, `error` (default: `info`)
-7. Setting `log.disable` to `true` will completely disable logging output
+1. In `tcp+udp` mode, both TCP and UDP traffic will be forwarded to the same remote service
+2. The `remote` field in binds must match the `name` field in remotes configuration
+3. Configuration files are recommended for production environments for easier management
+4. UDP forwarding supports session persistence controlled by `udp_ttl` timeout setting
+5. Both URL and complete configuration formats can be mixed in the same configuration file
 
 ## Acknowledgments
 

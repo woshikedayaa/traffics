@@ -32,7 +32,7 @@ type RawClient struct {
 func NewRawClient(dialer net.Dialer, destination string) *RawClient {
 	return &RawClient{
 		dialer:      dialer,
-		destination: destination,
+		destination: net.JoinHostPort(destination, "53"),
 		conns:       make(chan net.Conn, maxConn),
 	}
 }

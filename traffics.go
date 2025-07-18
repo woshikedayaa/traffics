@@ -101,7 +101,6 @@ func (t *Traffics) initDialer() error {
 			return fmt.Errorf("duplicated remote name: %s", v.Name)
 		}
 		realResolvePolicy := v.ResolveStrategy
-
 		realResolver := systemResolver
 		if v.DNS != "" {
 			realResolver = resolver.NewCachedResolverDefault(
@@ -244,7 +243,10 @@ func (t *TrafficHandler) PacketHandler(
 		if udpConn, ok := conn.(*net.UDPConn); ok {
 			t.udpConnTrack.Store(remote, udpConn)
 			go t.newUdpLoop(logger, remote, udpConn, pw, config)
-			logger.DebugContext(t.ctx, "new udp connection created")
+			logger.DebugContext(t.ctx, "new udp connection established",
+				slog.String("source", remote.String()),
+				slog.String("remote", udpConn.RemoteAddr().String()))
+
 			_, err = udpConn.Write(p)
 			if err != nil {
 				logger.ErrorContext(t.ctx, "write udp message failed", slog.String("error", err.Error()))
@@ -307,9 +309,9 @@ func (t *TrafficHandler) ConnHandler(
 		}
 		defer remote.Close()
 
-		logger.InfoContext(t.ctx, "new tcp connection craeted",
+		logger.InfoContext(t.ctx, "new tcp connection established",
 			slog.String("source", local.RemoteAddr().String()),
-			slog.String("remote", address),
+			slog.String("remote", remote.RemoteAddr().String()),
 			slog.String("local", remote.LocalAddr().String()),
 			slog.Int64("id", id),
 		)
