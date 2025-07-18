@@ -59,9 +59,8 @@ func NewTraffics(ctx context.Context, config Config) (*Traffics, error) {
 		return nil, err
 	}
 
-	if len(t.config.Binds) == 1 || len(t.config.Remote) == 1 {
-		t.config.Binds[0].Remote = "unique"
-		t.config.Remote[0].Name = "unique"
+	if len(config.Remote) == 1 && len(config.Binds) == 1 && config.Binds[0].Remote == "" {
+		config.Binds[0].Remote = config.Remote[0].Name
 	}
 
 	return t, nil

@@ -280,14 +280,6 @@ traffics \
   -r "vpn://vpn.company.com:1194?udp_fragment=true"
 ```
 
-## Use Cases
-
-- **Port Forwarding**: Forward local port traffic to remote servers
-- **Load Balancer Frontend**: Act as a simple traffic distributor
-- **Network Tunneling**: Bypass firewall restrictions
-- **Protocol Proxy**: TCP/UDP protocol conversion and proxying
-- **Development Debugging**: Service proxy for local development environments
-
 ## Important Notes
 
 1. In `tcp+udp` mode, both TCP and UDP traffic will be forwarded to the same remote service

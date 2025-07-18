@@ -35,6 +35,8 @@ Example:
 	
 	# start from a config file (this will override the command line options like -l and -r)
 	traffics -c config.json
+
+See README.md to get full documentation.
 `
 
 func main() {
