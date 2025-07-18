@@ -172,7 +172,7 @@ func (d *DefaultDialer) DialContext(ctx context.Context, network, address string
 		return nil, fmt.Errorf("dialer: resolve address failed: %w", err)
 	}
 
-	return d.DialParallel(ctx, network, a, aaaa, uint16(portNum))
+	return d.DialParallel(ctx, network, d.resolveStrategy, a, aaaa, uint16(portNum))
 }
 
 func (d *DefaultDialer) DialSerial(ctx context.Context, network string, addresses []netip.Addr, port uint16) (net.Conn, error) {
@@ -237,12 +237,16 @@ func (d *DefaultDialer) DialSerial(ctx context.Context, network string, addresse
 	return nil, fmt.Errorf("dialer: all addresses failed, last error: %w", lastErr)
 }
 
-func (d *DefaultDialer) DialParallel(ctx context.Context, network string,
+func (d *DefaultDialer) DialParallel(ctx context.Context, network string, strategy resolver.Strategy,
 	ipv4 []netip.Addr, ipv6 []netip.Addr, port uint16) (net.Conn, error) {
-	if len(ipv4) == 0 {
+	if len(ipv4) == 0 && len(ipv6) == 0 {
+		return nil, fmt.Errorf("dialer: no available address to dial")
+	}
+
+	if len(ipv4) == 0 || strategy == resolver.StrategyIPv6Only {
 		return d.DialSerial(ctx, network, ipv6, port)
 	}
-	if len(ipv6) == 0 {
+	if len(ipv6) == 0 || strategy == resolver.StrategyIPv4Only {
 		return d.DialSerial(ctx, network, ipv4, port)
 	}
 
@@ -257,11 +261,18 @@ func (d *DefaultDialer) DialParallel(ctx context.Context, network string,
 	dialCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// as RFC6555 said: prefer ipv6
+	firstIsIPv4 := strategy == resolver.StrategyPreferIPv4
+	var first, second []netip.Addr
+	if firstIsIPv4 {
+		first, second = ipv4, ipv6
+	} else {
+		first, second = ipv6, ipv4
+	}
 	go func() {
-		conn, err := d.DialSerial(dialCtx, network, ipv6, port)
+		conn, err := d.DialSerial(dialCtx, network, first, port)
 		select {
-		case resultChan <- dialResult{conn: conn, err: err, ipv6: true}:
+		case resultChan <- dialResult{conn: conn, err: err,
+			ipv6: !firstIsIPv4}:
 		case <-dialCtx.Done():
 			if conn != nil {
 				conn.Close()
@@ -270,10 +281,10 @@ func (d *DefaultDialer) DialParallel(ctx context.Context, network string,
 	}()
 
 	// happy eyeball
-	ipv4Timer := time.NewTimer(300 * time.Millisecond)
-	defer ipv4Timer.Stop()
+	firstTimer := time.NewTimer(300 * time.Millisecond)
+	defer firstTimer.Stop()
 
-	var ipv4Started bool
+	var secondStarted bool
 	var resultsReceived int
 
 	for resultsReceived < 2 {
@@ -281,13 +292,13 @@ func (d *DefaultDialer) DialParallel(ctx context.Context, network string,
 		case <-dialCtx.Done():
 			return nil, dialCtx.Err()
 
-		case <-ipv4Timer.C:
-			if !ipv4Started {
-				ipv4Started = true
+		case <-firstTimer.C:
+			if !secondStarted {
+				secondStarted = true
 				go func() {
-					conn, err := d.DialSerial(dialCtx, network, ipv4, port)
+					conn, err := d.DialSerial(dialCtx, network, second, port)
 					select {
-					case resultChan <- dialResult{conn: conn, err: err, ipv6: false}:
+					case resultChan <- dialResult{conn: conn, err: err, ipv6: firstIsIPv4}:
 					case <-dialCtx.Done():
 						if conn != nil {
 							conn.Close()
@@ -304,13 +315,13 @@ func (d *DefaultDialer) DialParallel(ctx context.Context, network string,
 				return result.conn, nil
 			}
 
-			if !ipv4Started && resultsReceived == 1 {
-				ipv4Started = true
-				ipv4Timer.Stop()
+			if !secondStarted && resultsReceived == 1 {
+				secondStarted = true
+				firstTimer.Stop()
 				go func() {
-					conn, err := d.DialSerial(dialCtx, network, ipv4, port)
+					conn, err := d.DialSerial(dialCtx, network, second, port)
 					select {
-					case resultChan <- dialResult{conn: conn, err: err, ipv6: false}:
+					case resultChan <- dialResult{conn: conn, err: err, ipv6: firstIsIPv4}:
 					case <-dialCtx.Done():
 						if conn != nil {
 							conn.Close()
