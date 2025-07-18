@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/miekg/dns"
+	"math/rand/v2"
 	"net"
 	"net/netip"
 )
@@ -102,7 +103,7 @@ func (s *SystemResolver) Lookup(ctx context.Context, fqdn string, strategy Strat
 			AAAA = append(AAAA, netipip)
 		}
 	}
-	return A, AAAA, nil
+	return randomSortAddresses(A), randomSortAddresses(AAAA), nil
 }
 
 func MessageToAddresses(response *dns.Msg) (address []netip.Addr, err error) {
@@ -167,6 +168,18 @@ func FqdnToQuestion(fqdn string, strategy Strategy) []dns.Question {
 			q4, q6,
 		}
 	}
+}
+
+func randomSortAddresses(raw []netip.Addr) []netip.Addr {
+	if len(raw) <= 1 {
+		return raw
+	}
+	var copied []netip.Addr
+	copy(copied, raw)
+	rand.Shuffle(len(copied), func(i, j int) {
+		copied[i], copied[j] = copied[j], copied[i]
+	})
+	return copied
 }
 
 type RcodeError int

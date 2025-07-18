@@ -74,20 +74,17 @@ func (c *BindConfig) valid() error {
 	}
 	if c.Listen.IsValid() {
 		if c.Listen.Is6() && c.Family == constant.FamilyIPv4 {
-			return fmt.Errorf("listen: listen a ipv6 address with ipv4 family")
+			return fmt.Errorf("bind: listen a ipv6 address with ipv4 family")
 		}
 		if c.Listen.Is4() && c.Family == constant.FamilyIPv6 {
-			return fmt.Errorf("listen: listen a ipv4 address with ipv6 family")
+			return fmt.Errorf("bind: listen a ipv4 address with ipv6 family")
 		}
 	} else {
 		c.Listen = netip.IPv6Unspecified()
 	}
 
 	if c.Port == 0 {
-		return errors.New("listen: no port specified")
-	}
-	if c.Remote == "" {
-		return errors.New("listen: no remote")
+		return errors.New("bind: no port specified")
 	}
 	return nil
 }
@@ -129,50 +126,52 @@ func (c *BindConfig) Parse(s string) error {
 		if len(v) == 0 {
 			continue
 		}
+		pick := len(v) - 1
+		var val = v[pick]
 
 		switch k {
 		case "family":
-			c.Family = v[0]
+			c.Family = val
 		case "interface":
-			c.Interface = v[0]
+			c.Interface = val
 		case "reuse_addr":
-			ok, err := strconv.ParseBool(v[0])
+			ok, err := strconv.ParseBool(val)
 			if err != nil {
-				return fmt.Errorf("parse bind(reuse_addr): expected bool, got %s", v[0])
+				return fmt.Errorf("parse bind(reuse_addr): expected bool, got %s", val)
 			}
 			c.ReuseAddr = ok
 		case "name":
-			c.Name = v[0]
+			c.Name = val
 		case "tfo":
-			ok, err := strconv.ParseBool(v[0])
+			ok, err := strconv.ParseBool(val)
 			if err != nil {
-				return fmt.Errorf("parse bind(tfo): expected bool, got %s", v[0])
+				return fmt.Errorf("parse bind(tfo): expected bool, got %s", val)
 			}
 			c.TFO = ok
 		case "udp_ttl":
-			duration, err := time.ParseDuration(v[0])
+			duration, err := time.ParseDuration(val)
 			if err != nil {
 				return fmt.Errorf("parse bind(udp_ttl): %w", err)
 			}
 			c.UDPKeepaliveTTL = duration
 		case "remote":
-			c.Remote = v[0]
+			c.Remote = val
 		case "udp_buffer_size":
-			size, err := strconv.Atoi(v[0])
+			size, err := strconv.Atoi(val)
 			if err != nil {
 				return fmt.Errorf("parse bind(udp_buffer_size): %w", err)
 			}
 			c.UDPBufferSize = size
 		case "udp_fragment":
-			ok, err := strconv.ParseBool(v[0])
+			ok, err := strconv.ParseBool(val)
 			if err != nil {
-				return fmt.Errorf("parse bind(udp_fragment): expected bool, got %s", v[0])
+				return fmt.Errorf("parse bind(udp_fragment): expected bool, got %s", val)
 			}
 			c.UDPFragment = ok
 		case "mptcp":
-			ok, err := strconv.ParseBool(v[0])
+			ok, err := strconv.ParseBool(val)
 			if err != nil {
-				return fmt.Errorf("parse bind(mptcp): expected bool, got %s", v[0])
+				return fmt.Errorf("parse bind(mptcp): expected bool, got %s", val)
 			}
 			c.MPTCP = ok
 		default:
@@ -235,14 +234,14 @@ func NewDefaultRemote() RemoteConfig {
 }
 
 func (c *RemoteConfig) valid() error {
-	if c.Name == "" {
-		return errors.New("dialer: no name specified")
-	}
+	//if c.Name == "" {
+	//	return errors.New("dialer: no name specified")
+	//}
 	if c.Server == "" {
-		return errors.New("dialer: no server specified")
+		return errors.New("remote: no server specified")
 	}
 	if c.Port == 0 {
-		return errors.New("dialer: no server port specified")
+		return errors.New("remote: no server port specified")
 	}
 
 	return nil
@@ -260,6 +259,7 @@ func (c *RemoteConfig) Parse(s string) error {
 
 	c.Raw = s
 	c.Server = uu.Hostname()
+	c.Name = uu.Scheme
 
 	if uu.Port() != "" {
 		pp, err := strconv.ParseUint(uu.Port(), 10, 16)
@@ -273,68 +273,70 @@ func (c *RemoteConfig) Parse(s string) error {
 		if len(v) == 0 {
 			continue
 		}
+		pick := len(v) - 1
+		var val = v[pick]
 
 		switch k {
 		case "dns":
-			c.DNS = v[0]
+			c.DNS = val
 		case "resolve_strategy":
-			strategy, ok := resolver.ParseStrategy(v[0])
+			strategy, ok := resolver.ParseStrategy(val)
 			if !ok {
-				return errors.New(fmt.Sprintf("resolve: unsupported resolve policy: %s", v[0]))
+				return errors.New(fmt.Sprintf("resolve: unsupported resolve policy: %s", val))
 			}
 			c.ResolveStrategy = strategy
 		case "timeout":
-			timeout, err := time.ParseDuration(v[0])
+			timeout, err := time.ParseDuration(v[pick])
 			if err != nil {
-				return fmt.Errorf("parse remote(timeout):  expected duration, got %s", v[0])
+				return fmt.Errorf("parse remote(timeout):  expected duration, got %s", val)
 			}
 			c.Timeout = timeout
 		case "reuse_addr":
-			ok, err := strconv.ParseBool(v[0])
+			ok, err := strconv.ParseBool(val)
 			if err != nil {
-				return fmt.Errorf("parse remote(reuse_addr):  expected bool, got %s", v[0])
+				return fmt.Errorf("parse remote(reuse_addr):  expected bool, got %s", val)
 			}
 			c.ReuseAddr = ok
 		case "tfo":
-			ok, err := strconv.ParseBool(v[0])
+			ok, err := strconv.ParseBool(val)
 			if err != nil {
-				return fmt.Errorf("parse remote(tfo): expected bool, got %s", v[0])
+				return fmt.Errorf("parse remote(tfo): expected bool, got %s", val)
 			}
 			c.TFO = ok
 		case "fw_mark":
-			mark, err := strconv.ParseUint(v[0], 10, 32)
+			mark, err := strconv.ParseUint(val, 10, 32)
 			if err != nil {
 				return fmt.Errorf("parse remote(fw_mark): %w", err)
 			}
 			c.FwMark = uint32(mark)
 		case "udp_fragment":
-			ok, err := strconv.ParseBool(v[0])
+			ok, err := strconv.ParseBool(val)
 			if err != nil {
-				return fmt.Errorf("parse remote(udp_fragment):  expected bool, got %s", v[0])
+				return fmt.Errorf("parse remote(udp_fragment):  expected bool, got %s", val)
 			}
 			c.UDPFragment = ok
 		case "interface":
-			c.Interface = v[0]
+			c.Interface = val
 		case "mptcp":
-			mptcp, err := strconv.ParseBool(v[0])
+			mptcp, err := strconv.ParseBool(val)
 			if err != nil {
-				return fmt.Errorf("parse remote(mptcp):  expected bool, got %s: %w", v[0], err)
+				return fmt.Errorf("parse remote(mptcp):  expected bool, got %s: %w", val, err)
 			}
 			c.MPTCP = mptcp
 		case "bind_address_4":
-			addr, err := netip.ParseAddr(v[0])
+			addr, err := netip.ParseAddr(val)
 			if err != nil {
 				return fmt.Errorf("parse remote(bind_address_4): %w", err)
 			}
 			c.BindAddress4 = addr
 		case "bind_address_6":
-			addr, err := netip.ParseAddr(v[0])
+			addr, err := netip.ParseAddr(val)
 			if err != nil {
 				return fmt.Errorf("parse remote(bind_address_6): %w", err)
 			}
 			c.BindAddress6 = addr
 		case "name":
-			c.Name = v[0]
+			c.Name = val
 		default:
 			return fmt.Errorf("parse remote: unknown option: %s", k)
 		}

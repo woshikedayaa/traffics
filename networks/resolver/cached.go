@@ -56,7 +56,7 @@ func (c *CachedResolver) Lookup(ctx context.Context, fqdn string, strategy Strat
 			if internal != nil || resp == nil {
 				return internal
 			}
-			A = append(A, resp...)
+			A = append(A, randomSortAddresses(resp)...)
 			return nil
 		})
 	}
@@ -66,7 +66,7 @@ func (c *CachedResolver) Lookup(ctx context.Context, fqdn string, strategy Strat
 			if internal != nil || resp == nil {
 				return internal
 			}
-			AAAA = append(AAAA, resp...)
+			AAAA = append(AAAA, randomSortAddresses(resp)...)
 			return nil
 		})
 	}

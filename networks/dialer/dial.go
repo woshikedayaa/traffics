@@ -216,11 +216,13 @@ func (d *DefaultDialer) DialSerial(ctx context.Context, network string, addresse
 		case constant.ProtocolUDP:
 			conn, err = udpDialer.DialContext(ctx, network, target.String())
 		case constant.ProtocolTCP:
-			if tcpDialer.DisableTFO {
-				conn, err = tcpDialer.DialContext(ctx, network, target.String(), nil)
-			} else {
-				conn, err = tcpDialer.DialContext(ctx, network, target.String(), tfoInitData)
-			}
+			//if tcpDialer.DisableTFO {
+			//	conn, err = tcpDialer.DialContext(ctx, network, target.String(), nil)
+			//} else {
+			//	conn, err = tcpDialer.DialContext(ctx, network, target.String(), tfoInitData)
+			//}
+			// FIXME: enable tfo for client
+			conn, err = tcpDialer.DialContext(ctx, network, target.String(), nil)
 		default:
 			conn, err = d.defaultDialer.DialContext(ctx, network, addr.String())
 		}

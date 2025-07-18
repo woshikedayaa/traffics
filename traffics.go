@@ -59,6 +59,11 @@ func NewTraffics(ctx context.Context, config Config) (*Traffics, error) {
 		return nil, err
 	}
 
+	if len(t.config.Binds) == 1 || len(t.config.Remote) == 1 {
+		t.config.Binds[0].Remote = "unique"
+		t.config.Remote[0].Name = "unique"
+	}
+
 	return t, nil
 }
 
@@ -87,6 +92,11 @@ func (t *Traffics) initDialer() error {
 	var systemResolver resolver.Resolver = resolver.NewSystemResolver()
 	// build dialer first
 	for _, v := range t.config.Remote {
+		if v.Name == "" {
+			// TODO: provide more detailed info about this
+			return fmt.Errorf("no name specified for %s", v.Server)
+		}
+
 		if _, ok := t.nameToDialer[v.Name]; ok {
 			return fmt.Errorf("duplicated remote name: %s", v.Name)
 		}
@@ -128,9 +138,14 @@ func (t *Traffics) initDialer() error {
 func (t *Traffics) initListener() error {
 	// parse listener
 	for _, v := range t.config.Binds {
+
 		var name = v.Name
 		if v.Name == "" {
 			name = netip.AddrPortFrom(v.Listen, v.Port).String()
+		}
+
+		if v.Remote == "" {
+			return fmt.Errorf("no remote specified for %s", name)
 		}
 
 		logger := t.logger.With(slog.String("listener", name))
